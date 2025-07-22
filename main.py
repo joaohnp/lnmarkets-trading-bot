@@ -1,10 +1,12 @@
-from dotenv import load_dotenv
 import time
-from utils import get_liquidation_status
+
+from dotenv import load_dotenv
+
+from utils import get_trades
 
 load_dotenv()
 
 while True:
     print("Checking current status...")
-    get_liquidation_status()
+    get_trades()
     time.sleep(5)

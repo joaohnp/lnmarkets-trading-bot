@@ -32,16 +32,18 @@ def current_profit(trade):
     logging.info(trade["pl"])  # Use logging.info
 
 
-def get_liquidation_status():
+def get_liquidation_status(trade, current_price):
+    closure_threshold = (trade["liquidation"] / current_price) * 100
+    if closure_threshold >= 95:
+        logging.warning(  # Use logging.warning for a potential issue
+            f"Trade {trade['id']} is at {round(closure_threshold, 2)}% of liquidation threshold"
+        )
+        add_margin(trade["id"])
+
+
+def get_trades():
     current_price = json.loads(lnm.futures_get_ticker())["index"]
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
     for trade in trades_json:
-        closure_threshold = (trade["liquidation"] / current_price) * 100
-        if closure_threshold >= 95:
-            logging.warning(  # Use logging.warning for a potential issue
-                f"Trade {trade['id']} is at {round(closure_threshold, 2)}% of liquidation threshold"
-            )
-            add_margin(trade["id"])
-        current_profit(trade)
-
+        get_liquidation_status(trade, current_price)
