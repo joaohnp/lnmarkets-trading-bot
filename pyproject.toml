@@ -8,4 +8,5 @@ dependencies = [
     "ln-markets>=2.0.10",
     "numpy>=2.3.1",
     "python-dotenv>=1.1.1",
+
 ]
