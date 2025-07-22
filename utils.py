@@ -41,8 +41,16 @@ def get_liquidation_status(trade, current_price):
         add_margin(trade["id"])
 
 
+def buy_order(): ...
+    #pl = quantityx(1/entry_price - 1/price_ref)
+
+
 def get_trades():
     current_price = json.loads(lnm.futures_get_ticker())["index"]
+    global reference_price
+    reference_price = current_price
+    if reference_price - current_price >= 200:
+        buy_order()
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
     for trade in trades_json:
