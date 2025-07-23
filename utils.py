@@ -23,6 +23,17 @@ options = {
 lnm = rest.LNMarketsRest(**options)
 
 
+def initialize_price():
+    """Busca o preço inicial na API e o define como referência."""
+    try:
+        initial_price = json.loads(lnm.futures_get_ticker())["index"]
+        logging.info(f"Preço de referência inicial definido: {initial_price}")
+        return initial_price
+    except Exception as e:
+        logging.error(f"Não foi possível obter o preço inicial. Encerrando. Erro: {e}")
+        return None  # Retorna None em caso de falha
+
+
 def add_margin(id, amount=1000):
     lnm.futures_add_margin({"amount": amount, "id": id})
     logging.info("Margin added to the trade")  # Use logging.info instead of print
@@ -41,17 +52,55 @@ def get_liquidation_status(trade, current_price):
         add_margin(trade["id"])
 
 
-def buy_order(): ...
-    #pl = quantityx(1/entry_price - 1/price_ref)
+def buy_order(takeprofit):
+    lnm.futures_new_trade(
+        {
+            "type": "m",
+            "side": "b",
+            "quantity": 300,
+            "leverage": 30,
+            "takeprofit": round(takeprofit),
+        }
+    )
+    logging.info(
+        f"Order bought aiming at {takeprofit}"
+    )  # Use logging.info instead of print
 
 
-def get_trades():
+reference_price = None
+
+
+def get_trades(highest_price_reference):
     current_price = json.loads(lnm.futures_get_ticker())["index"]
-    global reference_price
-    reference_price = current_price
-    if reference_price - current_price >= 200:
-        buy_order()
+
+    # Atualiza a referência de preço para o valor mais alto visto até agora
+    new_highest_price = max(highest_price_reference, current_price)
+    if new_highest_price > highest_price_reference:
+        highest_price_reference = new_highest_price
+        logging.info(
+            f"Novo pico de preço atingido. Nova referência para compra: {highest_price_reference}"
+        )
+
+    logging.info(
+        f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {current_price - 200}"""
+    )
+
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
+
+    # Condição de compra: se o preço cair 200 em relação ao pico
+    if (highest_price_reference - current_price >= 200) and (len(trades_json) < 10):
+        takeprofit = current_price * 1.004
+        buy_order(takeprofit)
+
+        # Após comprar, a nova referência de pico se torna o preço atual
+        logging.info(
+            f"Ordem de compra executada a {current_price}. Resetando referência de pico para este valor."
+        )
+        highest_price_reference = current_price
+
     for trade in trades_json:
         get_liquidation_status(trade, current_price)
+
+    # Retorna a referência atualizada para o main loop
+    return highest_price_reference
