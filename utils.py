@@ -34,7 +34,7 @@ def initialize_price():
         return None  # Retorna None em caso de falha
 
 
-def add_margin(id, amount=1000):
+def add_margin(id, amount=400):
     lnm.futures_add_margin({"amount": amount, "id": id})
     logging.info("Margin added to the trade")  # Use logging.info instead of print
 
@@ -58,7 +58,7 @@ def buy_order(takeprofit):
             "type": "m",
             "side": "b",
             "quantity": 300,
-            "leverage": 30,
+            "leverage": 20,
             "takeprofit": round(takeprofit),
         }
     )
@@ -82,15 +82,15 @@ def get_trades(highest_price_reference):
         )
 
     logging.info(
-        f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {current_price - 200}"""
+        f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {highest_price_reference - 200}"""
     )
 
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
-
-    # Condição de compra: se o preço cair 200 em relação ao pico
-    if (highest_price_reference - current_price >= 200) and (len(trades_json) < 10):
-        takeprofit = current_price * 1.004
+    next_buy = highest_price_reference - current_price
+    logging.info(f"""Próxima compra: {next_buy}""")
+    if (next_buy >= 200) and (len(trades_json) <= 22):
+        takeprofit = current_price * 1.0048
         buy_order(takeprofit)
 
         # Após comprar, a nova referência de pico se torna o preço atual

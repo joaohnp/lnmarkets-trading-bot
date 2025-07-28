@@ -13,5 +13,9 @@ if highest_price_reference is None:
 
 # O loop que você gosta, agora sem a lógica de setup.
 while True:
-    highest_price_reference = get_trades(highest_price_reference)
-    time.sleep(5)
+    try:
+        highest_price_reference = get_trades(highest_price_reference)
+        time.sleep(10)
+    except Exception as e:
+        print(e)
+        exit()
