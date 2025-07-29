@@ -45,7 +45,7 @@ def current_profit(trade):
 
 def get_liquidation_status(trade, current_price):
     closure_threshold = (trade["liquidation"] / current_price) * 100
-    if closure_threshold >= 95:
+    if closure_threshold >= 97:
         logging.warning(  # Use logging.warning for a potential issue
             f"Trade {trade['id']} is at {round(closure_threshold, 2)}% of liquidation threshold"
         )
@@ -58,7 +58,7 @@ def buy_order(takeprofit):
             "type": "m",
             "side": "b",
             "quantity": 300,
-            "leverage": 20,
+            "leverage": 18,
             "takeprofit": round(takeprofit),
         }
     )
@@ -82,14 +82,14 @@ def get_trades(highest_price_reference):
         )
 
     logging.info(
-        f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {highest_price_reference - 200}"""
+        f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {highest_price_reference - 250}"""
     )
 
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
     next_buy = highest_price_reference - current_price
     logging.info(f"""Próxima compra: {next_buy}""")
-    if (next_buy >= 200) and (len(trades_json) <= 22):
+    if (next_buy >= 250) and (len(trades_json) <= 29):
         takeprofit = current_price * 1.0048
         buy_order(takeprofit)
 
