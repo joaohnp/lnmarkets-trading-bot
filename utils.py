@@ -71,6 +71,7 @@ reference_price = None
 
 
 def get_trades(highest_price_reference):
+    buying_diff = 225
     current_price = json.loads(lnm.futures_get_ticker())["index"]
 
     # Atualiza a referência de preço para o valor mais alto visto até agora
@@ -82,15 +83,15 @@ def get_trades(highest_price_reference):
         )
 
     logging.info(
-        f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {highest_price_reference - 250}"""
+        f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {highest_price_reference - buying_diff}"""
     )
 
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
     next_buy = highest_price_reference - current_price
     logging.info(f"""Próxima compra: {next_buy}""")
-    if (next_buy >= 250) and (len(trades_json) <= 29):
-        takeprofit = current_price * 1.0048
+    if (next_buy >= buying_diff) and (len(trades_json) <= 50):
+        takeprofit = current_price * 1.0035
         buy_order(takeprofit)
 
         # Após comprar, a nova referência de pico se torna o preço atual
