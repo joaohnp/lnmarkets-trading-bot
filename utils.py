@@ -24,10 +24,10 @@ user_configs = {
     "percentage_to_buy": 1.005,
     "real_profit": 1.0035,
     "max_trades": 50,
-    "margin": 400,
+    "margin": 800,
     "quantity": 300,
     "leverage": 18,
-    "threshold_to_add": 98,
+    "threshold_to_add": 97.5,
 }
 lnm = rest.LNMarketsRest(**options)
 
@@ -123,9 +123,9 @@ def get_trades(highest_price_reference):
             f"Novo pico de preço atingido. Nova referência para compra: {highest_price_reference}"
         )
 
-    logging.info(
-        f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {highest_price_reference - buying_diff}"""
-    )
+    # logging.info(
+    #     f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {highest_price_reference - buying_diff}"""
+    # )
 
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
