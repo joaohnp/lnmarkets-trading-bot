@@ -39,6 +39,16 @@ def add_margin(id, amount=400):
     logging.info("Margin added to the trade")  # Use logging.info instead of print
 
 
+def adjust_order(trade, new_takeprofit):
+    old_takeprofit = trade["takeprofit"]
+    lnm.futures_update_trade(
+        {"id": trade["id"], "type": "takeprofit", "value": new_takeprofit}
+    )
+    logging.info(
+        f"Takeprofit of order {trade['id']} from {old_takeprofit} adjusted to {new_takeprofit}"
+    )
+
+
 def current_profit(trade):
     logging.info(trade["pl"])  # Use logging.info
 
@@ -67,6 +77,27 @@ def buy_order(takeprofit):
     )  # Use logging.info instead of print
 
 
+def adjust_take_profit(trade):
+    sum_carry_fees = trade["sum_carry_fees"]
+    opening_fee = trade["opening_fee"]
+    expected_profit = trade["quantity"] * (
+        (1 / trade["price"] - 1 / trade["takeprofit"]) * 100000000
+    )
+    real_profit = expected_profit - sum_carry_fees - opening_fee
+    ideal_profit = trade["quantity"] * (
+        (1 / trade["price"] - 1 / (trade["price"] * 1.0035)) * 100000000
+    )
+    if round(real_profit) < round(ideal_profit):
+        # breakpoint()
+        required_expected_profit = ideal_profit + sum_carry_fees + opening_fee
+        new_takeprofit = 1 / (
+            1 / trade["price"]
+            - required_expected_profit / (trade["quantity"] * 100000000)
+        )
+        if round(new_takeprofit) > trade["takeprofit"]:
+            adjust_order(trade, new_takeprofit=round(new_takeprofit))
+
+
 reference_price = None
 
 
@@ -91,7 +122,7 @@ def get_trades(highest_price_reference):
     next_buy = highest_price_reference - current_price
     logging.info(f"""Próxima compra: {next_buy}""")
     if (next_buy >= buying_diff) and (len(trades_json) <= 50):
-        takeprofit = current_price * 1.0035
+        takeprofit = current_price * 1.005
         buy_order(takeprofit)
 
         # Após comprar, a nova referência de pico se torna o preço atual
@@ -102,6 +133,7 @@ def get_trades(highest_price_reference):
 
     for trade in trades_json:
         get_liquidation_status(trade, current_price)
+        adjust_take_profit(trade)
 
     # Retorna a referência atualizada para o main loop
     return highest_price_reference
