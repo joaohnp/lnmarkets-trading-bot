@@ -111,6 +111,31 @@ def adjust_take_profit(trade):
 reference_price = None
 
 
+def is_order_in_range(current_price, range_size=50):
+    """
+    Check if there's already an open order within a certain range of the current price.
+    
+    Args:
+        current_price (float): Current market price
+        range_size (float): Price range to check for existing orders (default 50 USD)
+        
+    Returns:
+        bool: True if there's an order within the range, False otherwise
+    """
+    try:
+        running_trades = lnm.futures_get_trades({"type": "running"})
+        trades_json = json.loads(running_trades)
+        
+        for trade in trades_json:
+            # Check if the trade price is within the specified range of current price
+            if abs(trade["price"] - current_price) <= range_size:
+                return True
+        return False
+    except Exception as e:
+        logging.error(f"Error checking for orders in range: {e}")
+        return False
+
+
 def get_trades(highest_price_reference):
     buying_diff = user_configs["diff_to_buy"]
     current_price = json.loads(lnm.futures_get_ticker())["index"]
@@ -132,14 +157,20 @@ def get_trades(highest_price_reference):
     next_buy = highest_price_reference - current_price
     logging.info(f"""Próxima compra: {next_buy}""")
     if (next_buy >= buying_diff) and (len(trades_json) <= user_configs["max_trades"]):
-        takeprofit = current_price * user_configs["percentage_to_buy"]
-        buy_order(takeprofit)
+        # Check if there's already an order within range before buying
+        if not is_order_in_range(current_price):
+            takeprofit = current_price * user_configs["percentage_to_buy"]
+            buy_order(takeprofit)
 
-        # Após comprar, a nova referência de pico se torna o preço atual
-        logging.info(
-            f"Ordem de compra executada a {current_price}. Resetando referência de pico para este valor."
-        )
-        highest_price_reference = current_price
+            # Após comprar, a nova referência de pico se torna o preço atual
+            logging.info(
+                f"Ordem de compra executada a {current_price}. Resetando referência de pico para este valor."
+            )
+            highest_price_reference = current_price
+        else:
+            logging.info(
+                f"Order already exists within range of {current_price}. Skipping buy."
+            )
 
     for trade in trades_json:
         get_liquidation_status(trade, current_price)
