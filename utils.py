@@ -159,7 +159,7 @@ def get_trades(highest_price_reference):
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
     next_buy = highest_price_reference - current_price
-    logging.info(f"""Próxima compra: {next_buy}""")
+    logging.info("""Checking....""")
     if (next_buy >= buying_diff) and (len(trades_json) <= user_configs["max_trades"]):
         if user_configs["safe_guard"]:
             # Check if current price is sufficiently distant from existing orders
