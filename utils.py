@@ -25,7 +25,7 @@ user_configs = {
     "real_profit": 1.0035,
     "max_trades": 65,
     "margin": 800,
-    "quantity": 300,
+    "quantity": 500,
     "leverage": 18,
     "threshold_to_add": 97.5,
     "safe_guard": True,
@@ -132,12 +132,15 @@ def is_sufficient_distance_from_orders(current_price, min_distance=None):
         trades_json = json.loads(running_trades)
 
         for trade in trades_json:
-            # Check if the trade price is within the specified range of current price
-            if abs(trade["price"] - current_price) <= range_size:
-                return True
-        return False
+            # Check if the trade price is within the minimum required distance
+            if abs(trade["price"] - current_price) < min_distance:
+                logging.info(
+                    f"Order {trade['id']} at price {trade['price']} is too close to current price {current_price}. Distance: {abs(trade['price'] - current_price)}"
+                )
+                return False
+        return True
     except Exception as e:
-        logging.error(f"Error checking for orders in range: {e}")
+        logging.error(f"Error checking distance from existing orders: {e}")
         return False
 
 
@@ -153,28 +156,28 @@ def get_trades(highest_price_reference):
             f"Novo pico de preço atingido. Nova referência para compra: {highest_price_reference}"
         )
 
-    # logging.info(
-    #     f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {highest_price_reference - buying_diff}"""
-    # )
-
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
     next_buy = highest_price_reference - current_price
     logging.info(f"""Próxima compra: {next_buy}""")
     if (next_buy >= buying_diff) and (len(trades_json) <= user_configs["max_trades"]):
-        # Check if there's already an order within range before buying
-        if not is_order_in_range(current_price):
+        if user_configs["safe_guard"]:
+            # Check if current price is sufficiently distant from existing orders
+            if is_sufficient_distance_from_orders(current_price):
+                takeprofit = current_price * user_configs["percentage_to_buy"]
+                buy_order(takeprofit)
+                logging.info(
+                    f"Ordem de compra executada a {current_price}. Resetando referência de pico para este valor."
+                )
+            else:
+                logging.info(
+                    f"Safeguard activated: Current price {current_price} is too close to existing orders. Skipping buy."
+                )
+        else:
             takeprofit = current_price * user_configs["percentage_to_buy"]
             buy_order(takeprofit)
-
-            # Após comprar, a nova referência de pico se torna o preço atual
             logging.info(
                 f"Ordem de compra executada a {current_price}. Resetando referência de pico para este valor."
-            )
-            highest_price_reference = current_price
-        else:
-            logging.info(
-                f"Order already exists within range of {current_price}. Skipping buy."
             )
 
     for trade in trades_json:
