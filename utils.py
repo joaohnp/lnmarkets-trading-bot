@@ -113,21 +113,24 @@ def adjust_take_profit(trade):
 reference_price = None
 
 
-def is_order_in_range(current_price, range_size=50):
+def is_sufficient_distance_from_orders(current_price, min_distance=None):
     """
-    Check if there's already an open order within a certain range of the current price.
-    
+    Check if the current price is at least min_distance away from all existing orders.
+
     Args:
         current_price (float): Current market price
-        range_size (float): Price range to check for existing orders (default 50 USD)
-        
+        min_distance (float): Minimum required distance from existing orders (defaults to user_configs["min_order_diff"])
+
     Returns:
-        bool: True if there's an order within the range, False otherwise
+        bool: True if current price is sufficiently distant from all existing orders, False otherwise
     """
+    if min_distance is None:
+        min_distance = user_configs["min_order_diff"]
+
     try:
         running_trades = lnm.futures_get_trades({"type": "running"})
         trades_json = json.loads(running_trades)
-        
+
         for trade in trades_json:
             # Check if the trade price is within the specified range of current price
             if abs(trade["price"] - current_price) <= range_size:
