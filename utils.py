@@ -19,7 +19,16 @@ options = {
     "passphrase": os.getenv("LN_MARKETS_PASSPHRASE"),
     "network": "mainnet",
 }
-
+user_configs = {
+    "diff_to_buy": 400,
+    "percentage_to_buy": 1.005,
+    "real_profit": 1.0035,
+    "max_trades": 65,
+    "margin": 800,
+    "quantity": 300,
+    "leverage": 18,
+    "threshold_to_add": 97.5,
+}
 lnm = rest.LNMarketsRest(**options)
 
 
@@ -34,7 +43,7 @@ def initialize_price():
         return None  # Retorna None em caso de falha
 
 
-def add_margin(id, amount=400):
+def add_margin(id, amount=user_configs["margin"]):
     lnm.futures_add_margin({"amount": amount, "id": id})
     logging.info("Margin added to the trade")  # Use logging.info instead of print
 
@@ -55,7 +64,7 @@ def current_profit(trade):
 
 def get_liquidation_status(trade, current_price):
     closure_threshold = (trade["liquidation"] / current_price) * 100
-    if closure_threshold >= 97:
+    if closure_threshold >= user_configs["threshold_to_add"]:
         logging.warning(  # Use logging.warning for a potential issue
             f"Trade {trade['id']} is at {round(closure_threshold, 2)}% of liquidation threshold"
         )
@@ -67,8 +76,8 @@ def buy_order(takeprofit):
         {
             "type": "m",
             "side": "b",
-            "quantity": 300,
-            "leverage": 18,
+            "quantity": user_configs["quantity"],
+            "leverage": user_configs["leverage"],
             "takeprofit": round(takeprofit),
         }
     )
@@ -85,7 +94,8 @@ def adjust_take_profit(trade):
     )
     real_profit = expected_profit - sum_carry_fees - opening_fee
     ideal_profit = trade["quantity"] * (
-        (1 / trade["price"] - 1 / (trade["price"] * 1.0035)) * 100000000
+        (1 / trade["price"] - 1 / (trade["price"] * user_configs["real_profit"]))
+        * 100000000
     )
     if round(real_profit) < round(ideal_profit):
         # breakpoint()
@@ -101,8 +111,33 @@ def adjust_take_profit(trade):
 reference_price = None
 
 
+def is_order_in_range(current_price, range_size=50):
+    """
+    Check if there's already an open order within a certain range of the current price.
+    
+    Args:
+        current_price (float): Current market price
+        range_size (float): Price range to check for existing orders (default 50 USD)
+        
+    Returns:
+        bool: True if there's an order within the range, False otherwise
+    """
+    try:
+        running_trades = lnm.futures_get_trades({"type": "running"})
+        trades_json = json.loads(running_trades)
+        
+        for trade in trades_json:
+            # Check if the trade price is within the specified range of current price
+            if abs(trade["price"] - current_price) <= range_size:
+                return True
+        return False
+    except Exception as e:
+        logging.error(f"Error checking for orders in range: {e}")
+        return False
+
+
 def get_trades(highest_price_reference):
-    buying_diff = 225
+    buying_diff = user_configs["diff_to_buy"]
     current_price = json.loads(lnm.futures_get_ticker())["index"]
 
     # Atualiza a referência de preço para o valor mais alto visto até agora
@@ -113,23 +148,29 @@ def get_trades(highest_price_reference):
             f"Novo pico de preço atingido. Nova referência para compra: {highest_price_reference}"
         )
 
-    logging.info(
-        f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {highest_price_reference - buying_diff}"""
-    )
+    # logging.info(
+    #     f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {highest_price_reference - buying_diff}"""
+    # )
 
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
     next_buy = highest_price_reference - current_price
     logging.info(f"""Próxima compra: {next_buy}""")
-    if (next_buy >= buying_diff) and (len(trades_json) <= 50):
-        takeprofit = current_price * 1.005
-        buy_order(takeprofit)
+    if (next_buy >= buying_diff) and (len(trades_json) <= user_configs["max_trades"]):
+        # Check if there's already an order within range before buying
+        if not is_order_in_range(current_price):
+            takeprofit = current_price * user_configs["percentage_to_buy"]
+            buy_order(takeprofit)
 
-        # Após comprar, a nova referência de pico se torna o preço atual
-        logging.info(
-            f"Ordem de compra executada a {current_price}. Resetando referência de pico para este valor."
-        )
-        highest_price_reference = current_price
+            # Após comprar, a nova referência de pico se torna o preço atual
+            logging.info(
+                f"Ordem de compra executada a {current_price}. Resetando referência de pico para este valor."
+            )
+            highest_price_reference = current_price
+        else:
+            logging.info(
+                f"Order already exists within range of {current_price}. Skipping buy."
+            )
 
     for trade in trades_json:
         get_liquidation_status(trade, current_price)
