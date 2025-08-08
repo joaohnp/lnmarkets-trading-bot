@@ -20,27 +20,29 @@ options = {
     "network": "mainnet",
 }
 user_configs = {
-    "diff_to_buy": 400,
+    "diff_to_buy": 250,
     "percentage_to_buy": 1.005,
     "real_profit": 1.0035,
     "max_trades": 65,
     "margin": 800,
-    "quantity": 300,
+    "quantity": 500,
     "leverage": 18,
     "threshold_to_add": 97.5,
+    "safe_guard": True,
+    "min_order_diff": 333,
 }
 lnm = rest.LNMarketsRest(**options)
 
 
 def initialize_price():
-    """Busca o preço inicial na API e o define como referência."""
+    """Fetches the initial price from the API and sets it as reference."""
     try:
         initial_price = json.loads(lnm.futures_get_ticker())["index"]
-        logging.info(f"Preço de referência inicial definido: {initial_price}")
+        logging.info(f"Initial reference price set: {initial_price}")
         return initial_price
     except Exception as e:
-        logging.error(f"Não foi possível obter o preço inicial. Encerrando. Erro: {e}")
-        return None  # Retorna None em caso de falha
+        logging.error(f"Could not get initial price. Exiting. Error: {e}")
+        return None  # Returns None in case of failure
 
 
 def add_margin(id, amount=user_configs["margin"]):
@@ -111,28 +113,34 @@ def adjust_take_profit(trade):
 reference_price = None
 
 
-def is_order_in_range(current_price, range_size=50):
+def is_sufficient_distance_from_orders(current_price, min_distance=None):
     """
-    Check if there's already an open order within a certain range of the current price.
-    
+    Check if the current price is at least min_distance away from all existing orders.
+
     Args:
         current_price (float): Current market price
-        range_size (float): Price range to check for existing orders (default 50 USD)
-        
+        min_distance (float): Minimum required distance from existing orders (defaults to user_configs["min_order_diff"])
+
     Returns:
-        bool: True if there's an order within the range, False otherwise
+        bool: True if current price is sufficiently distant from all existing orders, False otherwise
     """
+    if min_distance is None:
+        min_distance = user_configs["min_order_diff"]
+
     try:
         running_trades = lnm.futures_get_trades({"type": "running"})
         trades_json = json.loads(running_trades)
-        
+
         for trade in trades_json:
-            # Check if the trade price is within the specified range of current price
-            if abs(trade["price"] - current_price) <= range_size:
-                return True
-        return False
+            # Check if the trade price is within the minimum required distance
+            if abs(trade["price"] - current_price) < min_distance:
+                logging.info(
+                    f"Order {trade['id']} at price {trade['price']} is too close to current price {current_price}. Distance: {abs(trade['price'] - current_price)}"
+                )
+                return False
+        return True
     except Exception as e:
-        logging.error(f"Error checking for orders in range: {e}")
+        logging.error(f"Error checking distance from existing orders: {e}")
         return False
 
 
@@ -140,41 +148,41 @@ def get_trades(highest_price_reference):
     buying_diff = user_configs["diff_to_buy"]
     current_price = json.loads(lnm.futures_get_ticker())["index"]
 
-    # Atualiza a referência de preço para o valor mais alto visto até agora
+    # Updates the price reference to the highest value seen so far
     new_highest_price = max(highest_price_reference, current_price)
     if new_highest_price > highest_price_reference:
         highest_price_reference = new_highest_price
         logging.info(
-            f"Novo pico de preço atingido. Nova referência para compra: {highest_price_reference}"
+            f"New price peak reached. New reference for buying: {highest_price_reference}"
         )
-
-    # logging.info(
-    #     f"""Pico: {highest_price_reference}, Atual: {current_price}, Compra: {highest_price_reference - buying_diff}"""
-    # )
 
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
     next_buy = highest_price_reference - current_price
-    logging.info(f"""Próxima compra: {next_buy}""")
+    logging.info("""Checking....""")
     if (next_buy >= buying_diff) and (len(trades_json) <= user_configs["max_trades"]):
-        # Check if there's already an order within range before buying
-        if not is_order_in_range(current_price):
+        if user_configs["safe_guard"]:
+            # Check if current price is sufficiently distant from existing orders
+            if is_sufficient_distance_from_orders(current_price):
+                takeprofit = current_price * user_configs["percentage_to_buy"]
+                buy_order(takeprofit)
+                logging.info(
+                    f"Buy order executed at {current_price}. Resetting peak reference to this value."
+                )
+            else:
+                logging.info(
+                    f"Safeguard activated: Current price {current_price} is too close to existing orders. Skipping buy."
+                )
+        else:
             takeprofit = current_price * user_configs["percentage_to_buy"]
             buy_order(takeprofit)
-
-            # Após comprar, a nova referência de pico se torna o preço atual
             logging.info(
-                f"Ordem de compra executada a {current_price}. Resetando referência de pico para este valor."
-            )
-            highest_price_reference = current_price
-        else:
-            logging.info(
-                f"Order already exists within range of {current_price}. Skipping buy."
+                f"Buy order executed at {current_price}. Resetting peak reference to this value."
             )
 
     for trade in trades_json:
         get_liquidation_status(trade, current_price)
         adjust_take_profit(trade)
 
-    # Retorna a referência atualizada para o main loop
+    # Returns the updated reference to the main loop
     return highest_price_reference
