@@ -35,14 +35,14 @@ lnm = rest.LNMarketsRest(**options)
 
 
 def initialize_price():
-    """Busca o preço inicial na API e o define como referência."""
+    """Fetches the initial price from the API and sets it as reference."""
     try:
         initial_price = json.loads(lnm.futures_get_ticker())["index"]
-        logging.info(f"Preço de referência inicial definido: {initial_price}")
+        logging.info(f"Initial reference price set: {initial_price}")
         return initial_price
     except Exception as e:
-        logging.error(f"Não foi possível obter o preço inicial. Encerrando. Erro: {e}")
-        return None  # Retorna None em caso de falha
+        logging.error(f"Could not get initial price. Exiting. Error: {e}")
+        return None  # Returns None in case of failure
 
 
 def add_margin(id, amount=user_configs["margin"]):
@@ -148,12 +148,12 @@ def get_trades(highest_price_reference):
     buying_diff = user_configs["diff_to_buy"]
     current_price = json.loads(lnm.futures_get_ticker())["index"]
 
-    # Atualiza a referência de preço para o valor mais alto visto até agora
+    # Updates the price reference to the highest value seen so far
     new_highest_price = max(highest_price_reference, current_price)
     if new_highest_price > highest_price_reference:
         highest_price_reference = new_highest_price
         logging.info(
-            f"Novo pico de preço atingido. Nova referência para compra: {highest_price_reference}"
+            f"New price peak reached. New reference for buying: {highest_price_reference}"
         )
 
     running_trades = lnm.futures_get_trades({"type": "running"})
@@ -167,7 +167,7 @@ def get_trades(highest_price_reference):
                 takeprofit = current_price * user_configs["percentage_to_buy"]
                 buy_order(takeprofit)
                 logging.info(
-                    f"Ordem de compra executada a {current_price}. Resetando referência de pico para este valor."
+                    f"Buy order executed at {current_price}. Resetting peak reference to this value."
                 )
             else:
                 logging.info(
@@ -177,12 +177,12 @@ def get_trades(highest_price_reference):
             takeprofit = current_price * user_configs["percentage_to_buy"]
             buy_order(takeprofit)
             logging.info(
-                f"Ordem de compra executada a {current_price}. Resetando referência de pico para este valor."
+                f"Buy order executed at {current_price}. Resetting peak reference to this value."
             )
 
     for trade in trades_json:
         get_liquidation_status(trade, current_price)
         adjust_take_profit(trade)
 
-    # Retorna a referência atualizada para o main loop
+    # Returns the updated reference to the main loop
     return highest_price_reference
