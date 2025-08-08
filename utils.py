@@ -19,29 +19,170 @@ options = {
     "passphrase": os.getenv("LN_MARKETS_PASSPHRASE"),
     "network": "mainnet",
 }
-
+user_configs = {
+    "diff_to_buy": 250,
+    "percentage_to_buy": 1.005,
+    "real_profit": 1.0035,
+    "max_trades": 65,
+    "margin": 800,
+    "quantity": 500,
+    "leverage": 18,
+    "threshold_to_add": 97.5,
+    "safe_guard": True,
+    "min_order_diff": 333,
+}
 lnm = rest.LNMarketsRest(**options)
 
 
-def add_margin(id, amount=1000):
+def initialize_price():
+    """Fetches the initial price from the API and sets it as reference."""
+    try:
+        initial_price = json.loads(lnm.futures_get_ticker())["index"]
+        logging.info(f"Initial reference price set: {initial_price}")
+        return initial_price
+    except Exception as e:
+        logging.error(f"Could not get initial price. Exiting. Error: {e}")
+        return None  # Returns None in case of failure
+
+
+def add_margin(id, amount=user_configs["margin"]):
     lnm.futures_add_margin({"amount": amount, "id": id})
     logging.info("Margin added to the trade")  # Use logging.info instead of print
+
+
+def adjust_order(trade, new_takeprofit):
+    old_takeprofit = trade["takeprofit"]
+    lnm.futures_update_trade(
+        {"id": trade["id"], "type": "takeprofit", "value": new_takeprofit}
+    )
+    logging.info(
+        f"Takeprofit of order {trade['id']} from {old_takeprofit} adjusted to {new_takeprofit}"
+    )
 
 
 def current_profit(trade):
     logging.info(trade["pl"])  # Use logging.info
 
 
-def get_liquidation_status():
+def get_liquidation_status(trade, current_price):
+    closure_threshold = (trade["liquidation"] / current_price) * 100
+    if closure_threshold >= user_configs["threshold_to_add"]:
+        logging.warning(  # Use logging.warning for a potential issue
+            f"Trade {trade['id']} is at {round(closure_threshold, 2)}% of liquidation threshold"
+        )
+        add_margin(trade["id"])
+
+
+def buy_order(takeprofit):
+    lnm.futures_new_trade(
+        {
+            "type": "m",
+            "side": "b",
+            "quantity": user_configs["quantity"],
+            "leverage": user_configs["leverage"],
+            "takeprofit": round(takeprofit),
+        }
+    )
+    logging.info(
+        f"Order bought aiming at {takeprofit}"
+    )  # Use logging.info instead of print
+
+
+def adjust_take_profit(trade):
+    sum_carry_fees = trade["sum_carry_fees"]
+    opening_fee = trade["opening_fee"]
+    expected_profit = trade["quantity"] * (
+        (1 / trade["price"] - 1 / trade["takeprofit"]) * 100000000
+    )
+    real_profit = expected_profit - sum_carry_fees - opening_fee
+    ideal_profit = trade["quantity"] * (
+        (1 / trade["price"] - 1 / (trade["price"] * user_configs["real_profit"]))
+        * 100000000
+    )
+    if round(real_profit) < round(ideal_profit):
+        # breakpoint()
+        required_expected_profit = ideal_profit + sum_carry_fees + opening_fee
+        new_takeprofit = 1 / (
+            1 / trade["price"]
+            - required_expected_profit / (trade["quantity"] * 100000000)
+        )
+        if round(new_takeprofit) > trade["takeprofit"]:
+            adjust_order(trade, new_takeprofit=round(new_takeprofit))
+
+
+reference_price = None
+
+
+def is_sufficient_distance_from_orders(current_price, min_distance=None):
+    """
+    Check if the current price is at least min_distance away from all existing orders.
+
+    Args:
+        current_price (float): Current market price
+        min_distance (float): Minimum required distance from existing orders (defaults to user_configs["min_order_diff"])
+
+    Returns:
+        bool: True if current price is sufficiently distant from all existing orders, False otherwise
+    """
+    if min_distance is None:
+        min_distance = user_configs["min_order_diff"]
+
+    try:
+        running_trades = lnm.futures_get_trades({"type": "running"})
+        trades_json = json.loads(running_trades)
+
+        for trade in trades_json:
+            # Check if the trade price is within the minimum required distance
+            if abs(trade["price"] - current_price) < min_distance:
+                logging.info(
+                    f"Order {trade['id']} at price {trade['price']} is too close to current price {current_price}. Distance: {abs(trade['price'] - current_price)}"
+                )
+                return False
+        return True
+    except Exception as e:
+        logging.error(f"Error checking distance from existing orders: {e}")
+        return False
+
+
+def get_trades(highest_price_reference):
+    buying_diff = user_configs["diff_to_buy"]
     current_price = json.loads(lnm.futures_get_ticker())["index"]
+
+    # Updates the price reference to the highest value seen so far
+    new_highest_price = max(highest_price_reference, current_price)
+    if new_highest_price > highest_price_reference:
+        highest_price_reference = new_highest_price
+        logging.info(
+            f"New price peak reached. New reference for buying: {highest_price_reference}"
+        )
+
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
-    for trade in trades_json:
-        closure_threshold = (trade["liquidation"] / current_price) * 100
-        if closure_threshold >= 95:
-            logging.warning(  # Use logging.warning for a potential issue
-                f"Trade {trade['id']} is at {round(closure_threshold, 2)}% of liquidation threshold"
+    next_buy = highest_price_reference - current_price
+    logging.info("""Checking....""")
+    if (next_buy >= buying_diff) and (len(trades_json) <= user_configs["max_trades"]):
+        if user_configs["safe_guard"]:
+            # Check if current price is sufficiently distant from existing orders
+            if is_sufficient_distance_from_orders(current_price):
+                takeprofit = current_price * user_configs["percentage_to_buy"]
+                buy_order(takeprofit)
+                logging.info(
+                    f"Buy order executed at {current_price}. Resetting peak reference to this value."
+                )
+            else:
+                logging.info(
+                    f"Safeguard activated: Current price {current_price} is too close to existing orders. Skipping buy."
+                )
+        else:
+            takeprofit = current_price * user_configs["percentage_to_buy"]
+            buy_order(takeprofit)
+            logging.info(
+                f"Buy order executed at {current_price}. Resetting peak reference to this value."
             )
-            add_margin(trade["id"])
-        current_profit(trade)
 
+    for trade in trades_json:
+        get_liquidation_status(trade, current_price)
+        adjust_take_profit(trade)
+
+    # Returns the updated reference to the main loop
+    return highest_price_reference
