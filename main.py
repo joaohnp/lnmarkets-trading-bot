@@ -11,7 +11,7 @@ if highest_price_reference is None:
     exit()
 last_sent_minute_block = -1
 while True:
-    current_minute_block = datetime.datetime.now().minute // 15
+    current_minute_block = datetime.now().minute // 15
     if current_minute_block != last_sent_minute_block:
         send_telegram_message("Bot up and running")
         last_sent_minute_block = current_minute_block
