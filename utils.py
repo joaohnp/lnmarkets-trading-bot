@@ -5,6 +5,8 @@ import os
 from dotenv import load_dotenv
 from lnmarkets import rest
 
+from telegram_utils import send_telegram_message
+
 load_dotenv()
 
 # Configure logging
@@ -67,9 +69,10 @@ def current_profit(trade):
 def get_liquidation_status(trade, current_price):
     closure_threshold = (trade["liquidation"] / current_price) * 100
     if closure_threshold >= user_configs["threshold_to_add"]:
-        logging.warning(  # Use logging.warning for a potential issue
-            f"Trade {trade['id']} is at {round(closure_threshold, 2)}% of liquidation threshold"
-        )
+        warning_message = f"Trade {trade['id']} is at {round(closure_threshold, 2)}% of liquidation threshold"
+        logging.warning(warning_message)
+        send_telegram_message(warning_message)
+
         add_margin(trade["id"])
 
 
@@ -83,9 +86,9 @@ def buy_order(takeprofit):
             "takeprofit": round(takeprofit),
         }
     )
-    logging.info(
-        f"Order bought aiming at {takeprofit}"
-    )  # Use logging.info instead of print
+    new_order_text = f"New order aiming at {takeprofit}"
+    logging.info(new_order_text)
+    send_telegram_message(new_order_text)
 
 
 def adjust_take_profit(trade):
@@ -152,9 +155,9 @@ def get_trades(highest_price_reference):
     new_highest_price = max(highest_price_reference, current_price)
     if new_highest_price > highest_price_reference:
         highest_price_reference = new_highest_price
-        logging.info(
-            f"New price peak reached. New reference for buying: {highest_price_reference}"
-        )
+        price_peak_text = f"New price peak reached. New reference for buying: {highest_price_reference}"
+        logging.info(price_peak_text)
+        send_telegram_message(price_peak_text)
 
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
@@ -165,15 +168,14 @@ def get_trades(highest_price_reference):
             # Check if current price is sufficiently distant from existing orders
             if is_sufficient_distance_from_orders(current_price):
                 takeprofit = current_price * user_configs["percentage_to_buy"]
-                buy_order(takeprofit)
+                # buy_order(takeprofit)
                 logging.info(
                     f"Buy order executed at {current_price}. Resetting peak reference to this value."
                 )
             else:
-                logging.info(
-                    f"Safeguard activated: Current price {current_price} is too close to existing orders. Skipping buy."
-                )
-        else:
+                safeguard_message = f"Current price {current_price} is too close to existing orders. Skipping buy."
+                logging.info(safeguard_message)
+                send_telegram_message(safeguard_message)
             takeprofit = current_price * user_configs["percentage_to_buy"]
             buy_order(takeprofit)
             logging.info(

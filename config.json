@@ -1,0 +1,12 @@
+{
+    "diff_to_buy": 250,
+    "percentage_to_buy": 1.005,
+    "real_profit": 1.0035,
+    "max_trades": 65,
+    "min_order_diff": 333,
+    "margin": 800,
+    "quantity": 500,
+    "leverage": 18,
+    "threshold_to_add": 97.5,
+    "safe_guard": true
+}
