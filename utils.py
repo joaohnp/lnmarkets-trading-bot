@@ -168,19 +168,19 @@ def get_trades(highest_price_reference):
             # Check if current price is sufficiently distant from existing orders
             if is_sufficient_distance_from_orders(current_price):
                 takeprofit = current_price * user_configs["percentage_to_buy"]
-                # buy_order(takeprofit)
-                logging.info(
-                    f"Buy order executed at {current_price}. Resetting peak reference to this value."
-                )
+                buy_order(takeprofit)
+                buying_message = f"Buy order executed at {current_price}. Resetting peak reference to this value."
+                logging.info(buying_message)
+                send_telegram_message(buying_message)
             else:
                 safeguard_message = f"Current price {current_price} is too close to existing orders. Skipping buy."
                 logging.info(safeguard_message)
                 send_telegram_message(safeguard_message)
             takeprofit = current_price * user_configs["percentage_to_buy"]
-            buy_order(takeprofit)
-            logging.info(
-                f"Buy order executed at {current_price}. Resetting peak reference to this value."
-            )
+            # buy_order(takeprofit)
+            # logging.info(
+            #     f"Buy order executed at {current_price}. Resetting peak reference to this value."
+            # )
 
     for trade in trades_json:
         get_liquidation_status(trade, current_price)
