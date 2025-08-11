@@ -150,12 +150,12 @@ def is_sufficient_distance_from_orders(current_price, min_distance=None):
 def get_trades(highest_price_reference):
     buying_diff = user_configs["diff_to_buy"]
     current_price = json.loads(lnm.futures_get_ticker())["index"]
-
-    # Updates the price reference to the highest value seen so far
     new_highest_price = max(highest_price_reference, current_price)
     if new_highest_price > highest_price_reference:
         highest_price_reference = new_highest_price
-        price_peak_text = f"New price peak reached. New reference for buying: {highest_price_reference}"
+        price_peak_text = (
+            f"New price peak reached. New reference: {highest_price_reference}"
+        )
         logging.info(price_peak_text)
         send_telegram_message(price_peak_text)
 
@@ -166,26 +166,22 @@ def get_trades(highest_price_reference):
         send_telegram_message("approaching buying region")
     if (next_buy >= buying_diff) and (len(trades_json) <= user_configs["max_trades"]):
         if user_configs["safe_guard"]:
-            # Check if current price is sufficiently distant from existing orders
             if is_sufficient_distance_from_orders(current_price):
                 takeprofit = current_price * user_configs["percentage_to_buy"]
                 buy_order(takeprofit)
                 buying_message = f"Buy order executed at {current_price}. Resetting peak reference to this value."
                 logging.info(buying_message)
                 send_telegram_message(buying_message)
-            else:
-                safeguard_message = f"Current price {current_price} is too close to existing orders. Skipping buy."
-                logging.info(safeguard_message)
-                send_telegram_message(safeguard_message)
+                highest_price_reference = current_price
+        else:
             takeprofit = current_price * user_configs["percentage_to_buy"]
-            # buy_order(takeprofit)
-            # logging.info(
-            #     f"Buy order executed at {current_price}. Resetting peak reference to this value."
-            # )
+            buy_order(takeprofit)
+            buying_message = f"Buy order executed at {current_price}"
+            logging.info(buying_message)
+            send_telegram_message(buying_message)
+            highest_price_reference = current_price
 
     for trade in trades_json:
         get_liquidation_status(trade, current_price)
         adjust_take_profit(trade)
-
-    # Returns the updated reference to the main loop
     return highest_price_reference
