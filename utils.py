@@ -22,7 +22,7 @@ options = {
     "network": "mainnet",
 }
 user_configs = {
-    "diff_to_buy": 250,
+    "diff_to_buy": 100,
     "percentage_to_buy": 1.005,
     "real_profit": 1.0035,
     "max_trades": 65,
