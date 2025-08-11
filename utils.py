@@ -49,7 +49,9 @@ def initialize_price():
 
 def add_margin(id, amount=user_configs["margin"]):
     lnm.futures_add_margin({"amount": amount, "id": id})
-    logging.info("Margin added to the trade")  # Use logging.info instead of print
+    margin_message = f"Margin added to order {id} for amount {amount}"
+    logging.info("Margin added to the trade")
+    send_telegram_message(margin_message)
 
 
 def adjust_order(trade, new_takeprofit):
