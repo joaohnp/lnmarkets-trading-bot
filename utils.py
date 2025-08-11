@@ -162,10 +162,10 @@ def get_trades(highest_price_reference):
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
     next_buy = highest_price_reference - current_price
-    if next_buy >= buying_diff:
-        send_telegram_message(
-            f"approaching buying region. highest price: {highest_price_reference}, current price: {current_price}"
-        )
+    # if next_buy >= buying_diff:
+    #     send_telegram_message(
+    #         f"approaching buying region. highest price: {highest_price_reference}, current price: {current_price}"
+    #     )
     if (next_buy >= buying_diff) and (len(trades_json) <= user_configs["max_trades"]):
         if user_configs["safe_guard"]:
             if is_sufficient_distance_from_orders(current_price):
