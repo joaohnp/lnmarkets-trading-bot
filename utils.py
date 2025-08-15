@@ -74,8 +74,12 @@ def get_liquidation_status(trade, current_price):
         warning_message = f"Trade {trade['id']} is at {round(closure_threshold, 2)}% of liquidation threshold"
         logging.warning(warning_message)
         send_telegram_message(warning_message)
-
-        add_margin(trade["id"])
+        try:
+            add_margin(trade["id"])
+        except Exception as e:
+            exception_message = f"Error adding margin to trade {trade['id']}: {e}"
+            logging.error(exception_message)
+            send_telegram_message(exception_message)
 
 
 def buy_order(takeprofit):
@@ -146,6 +150,7 @@ def is_sufficient_distance_from_orders(current_price, min_distance=None):
         return True
     except Exception as e:
         logging.error(f"Error checking distance from existing orders: {e}")
+        send_telegram_message(f"Error checking distance from existing orders: {e}")
         return False
 
 
@@ -164,26 +169,30 @@ def get_trades(highest_price_reference):
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
     next_buy = highest_price_reference - current_price
-    # if next_buy >= buying_diff:
-    #     send_telegram_message(
-    #         f"approaching buying region. highest price: {highest_price_reference}, current price: {current_price}"
-    #     )
     if (next_buy >= buying_diff) and (len(trades_json) <= user_configs["max_trades"]):
         if user_configs["safe_guard"]:
             if is_sufficient_distance_from_orders(current_price):
                 takeprofit = current_price * user_configs["percentage_to_buy"]
+                try:
+                    buy_order(takeprofit)
+                    buying_message = f"Buy order executed at {current_price}. Resetting peak reference to this value."
+                    logging.info(buying_message)
+                    send_telegram_message(buying_message)
+                    highest_price_reference = current_price
+                except Exception as e:
+                    logging.error(f"Error executing buy order: {e}")
+                    send_telegram_message(f"Error executing buy order: {e}")
+        else:
+            takeprofit = current_price * user_configs["percentage_to_buy"]
+            try:
                 buy_order(takeprofit)
-                buying_message = f"Buy order executed at {current_price}. Resetting peak reference to this value."
+                buying_message = f"Buy order executed at {current_price}"
                 logging.info(buying_message)
                 send_telegram_message(buying_message)
                 highest_price_reference = current_price
-        else:
-            takeprofit = current_price * user_configs["percentage_to_buy"]
-            buy_order(takeprofit)
-            buying_message = f"Buy order executed at {current_price}"
-            logging.info(buying_message)
-            send_telegram_message(buying_message)
-            highest_price_reference = current_price
+            except Exception as e:
+                logging.error(f"Error executing buy order: {e}")
+                send_telegram_message(f"Error executing buy order: {e}")
 
     for trade in trades_json:
         get_liquidation_status(trade, current_price)
