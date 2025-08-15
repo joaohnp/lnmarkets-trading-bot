@@ -17,7 +17,7 @@ while True:
         last_sent_minute_block = current_minute_block
     try:
         highest_price_reference = get_trades(highest_price_reference)
-        time.sleep(10)
+        time.sleep(30)
     except Exception as e:
         send_telegram_message(f"Error encountered: {e}, reconnecting...")
         time.sleep(30)
