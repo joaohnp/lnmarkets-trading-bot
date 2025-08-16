@@ -1,0 +1,11 @@
+services:
+  miner:
+    build: .
+    container_name: lnmarkets-bot
+    environment:
+      - IN_DOCKER=true
+    env_file:
+      - .env
+    deploy:
+      restart_policy:
+        condition: on-failure

@@ -3,10 +3,10 @@ from datetime import datetime
 from sys import exit
 
 from telegram_utils import send_telegram_message
-from utils import get_trades, initialize_price
+from utils import get_trades, initialize_price, message_handler
 
 highest_price_reference = initialize_price()
-
+message_handler("Bot started")
 if highest_price_reference is None:
     exit()
 last_sent_minute_block = -1
@@ -24,5 +24,7 @@ while True:
         # Re-initialize price reference in case of connection issues
         highest_price_reference = initialize_price()
         if highest_price_reference is None:
-            send_telegram_message("Failed to re-initialize price reference. Exiting.")
+            send_telegram_message(
+                "Failed to re-initialize price reference. Exiting."
+            )
             exit()
