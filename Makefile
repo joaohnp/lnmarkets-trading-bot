@@ -1,6 +1,6 @@
 include .env
 
-DOCKER_IMAGE_NAME="${COMPOSE_PROJECT_NAME}-bot"
+DOCKER_IMAGE_NAME="${COMPOSE_PROJECT_NAME}_bot"
 
 
 .PHONY: ps img up down down-fast restart hard-restart reset reset-fast logs exec stats env clean
