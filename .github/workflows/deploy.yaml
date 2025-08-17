@@ -15,6 +15,6 @@ jobs:
           username: ${{ secrets.DO_SSH_USERNAME }}
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           script: |
-            cd lnmarkets-trading-bot/
+            cd lnmarkets-trading-bot
             git pull origin main
             make reset
