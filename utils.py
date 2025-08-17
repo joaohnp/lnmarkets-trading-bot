@@ -150,7 +150,7 @@ def is_sufficient_distance_from_orders(current_price, min_distance=None):
                 msg_attempt_buy = f"""Order {trade["id"]} at price {trade["price"]} is
                     too close to current price {current_price}. Distance:
                     {abs(trade["price"] - current_price)}"""
-                message_handler(msg_attempt_buy)
+                # message_handler(msg_attempt_buy)
                 return False
         return True
     except Exception as e:
