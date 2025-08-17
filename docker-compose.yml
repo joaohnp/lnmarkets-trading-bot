@@ -1,5 +1,5 @@
 services:
-  miner:
+  bot:
     build: .
     container_name: lnmarkets-bot
     environment:
