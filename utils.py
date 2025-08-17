@@ -5,6 +5,8 @@ import os
 from dotenv import load_dotenv
 from lnmarkets import rest
 
+from telegram_utils import send_telegram_message
+
 load_dotenv()
 
 # Configure logging
@@ -20,7 +22,7 @@ options = {
     "network": "mainnet",
 }
 user_configs = {
-    "diff_to_buy": 250,
+    "diff_to_buy": 100,
     "percentage_to_buy": 1.005,
     "real_profit": 1.0035,
     "max_trades": 65,
@@ -34,11 +36,17 @@ user_configs = {
 lnm = rest.LNMarketsRest(**options)
 
 
+def message_handler(message):
+    logging.info(message)
+    send_telegram_message(message)
+
+
 def initialize_price():
     """Fetches the initial price from the API and sets it as reference."""
     try:
         initial_price = json.loads(lnm.futures_get_ticker())["index"]
-        logging.info(f"Initial reference price set: {initial_price}")
+        msg = f"Initial reference price: {initial_price}"
+        message_handler(msg)
         return initial_price
     except Exception as e:
         logging.error(f"Could not get initial price. Exiting. Error: {e}")
@@ -47,45 +55,48 @@ def initialize_price():
 
 def add_margin(id, amount=user_configs["margin"]):
     lnm.futures_add_margin({"amount": amount, "id": id})
-    logging.info("Margin added to the trade")  # Use logging.info instead of print
+    margin_message = f"Margin added to order {id} for amount {amount}"
+    message_handler(margin_message)
 
 
 def adjust_order(trade, new_takeprofit):
     old_takeprofit = trade["takeprofit"]
-    lnm.futures_update_trade(
-        {"id": trade["id"], "type": "takeprofit", "value": new_takeprofit}
+    lnm.futures_update_trade({
+        "id": trade["id"],
+        "type": "takeprofit",
+        "value": new_takeprofit,
+    })
+    adjusted_profit_msg = (
+        f"Goal of {trade['id']} from {old_takeprofit} to {new_takeprofit}"
     )
-    logging.info(
-        f"Takeprofit of order {trade['id']} from {old_takeprofit} adjusted to {new_takeprofit}"
-    )
-
-
-def current_profit(trade):
-    logging.info(trade["pl"])  # Use logging.info
+    message_handler(adjusted_profit_msg)
 
 
 def get_liquidation_status(trade, current_price):
     closure_threshold = (trade["liquidation"] / current_price) * 100
     if closure_threshold >= user_configs["threshold_to_add"]:
-        logging.warning(  # Use logging.warning for a potential issue
-            f"Trade {trade['id']} is at {round(closure_threshold, 2)}% of liquidation threshold"
-        )
-        add_margin(trade["id"])
+        warning_message = f"""Trade {trade["id"]} is at
+        {round(closure_threshold, 2)}% of liquidation threshold"""
+        message_handler(warning_message)
+        try:
+            add_margin(trade["id"])
+        except Exception as e:
+            exception_message = (
+                f"Error adding margin to trade {trade['id']}: {e}"
+            )
+            message_handler(exception_message)
 
 
 def buy_order(takeprofit):
-    lnm.futures_new_trade(
-        {
-            "type": "m",
-            "side": "b",
-            "quantity": user_configs["quantity"],
-            "leverage": user_configs["leverage"],
-            "takeprofit": round(takeprofit),
-        }
-    )
-    logging.info(
-        f"Order bought aiming at {takeprofit}"
-    )  # Use logging.info instead of print
+    lnm.futures_new_trade({
+        "type": "m",
+        "side": "b",
+        "quantity": user_configs["quantity"],
+        "leverage": user_configs["leverage"],
+        "takeprofit": round(takeprofit),
+    })
+    new_order_text = f"New order aiming at {takeprofit}"
+    message_handler(new_order_text)
 
 
 def adjust_take_profit(trade):
@@ -96,7 +107,10 @@ def adjust_take_profit(trade):
     )
     real_profit = expected_profit - sum_carry_fees - opening_fee
     ideal_profit = trade["quantity"] * (
-        (1 / trade["price"] - 1 / (trade["price"] * user_configs["real_profit"]))
+        (
+            1 / trade["price"]
+            - 1 / (trade["price"] * user_configs["real_profit"])
+        )
         * 100000000
     )
     if round(real_profit) < round(ideal_profit):
@@ -132,57 +146,59 @@ def is_sufficient_distance_from_orders(current_price, min_distance=None):
         trades_json = json.loads(running_trades)
 
         for trade in trades_json:
-            # Check if the trade price is within the minimum required distance
             if abs(trade["price"] - current_price) < min_distance:
-                logging.info(
-                    f"Order {trade['id']} at price {trade['price']} is too close to current price {current_price}. Distance: {abs(trade['price'] - current_price)}"
-                )
+                msg_attempt_buy = f"""Order {trade["id"]} at price {trade["price"]} is
+                    too close to current price {current_price}. Distance:
+                    {abs(trade["price"] - current_price)}"""
+                # message_handler(msg_attempt_buy)
                 return False
         return True
     except Exception as e:
-        logging.error(f"Error checking distance from existing orders: {e}")
+        error_msg = f"Error checking distance from existing orders: {e}"
+        message_handler(error_msg)
         return False
 
 
 def get_trades(highest_price_reference):
     buying_diff = user_configs["diff_to_buy"]
     current_price = json.loads(lnm.futures_get_ticker())["index"]
-
-    # Updates the price reference to the highest value seen so far
     new_highest_price = max(highest_price_reference, current_price)
     if new_highest_price > highest_price_reference:
         highest_price_reference = new_highest_price
-        logging.info(
-            f"New price peak reached. New reference for buying: {highest_price_reference}"
+        price_peak_text = (
+            f"New price peak reached. New reference: {highest_price_reference}"
         )
+        message_handler(price_peak_text)
 
     running_trades = lnm.futures_get_trades({"type": "running"})
     trades_json = json.loads(running_trades)
     next_buy = highest_price_reference - current_price
-    logging.info("""Checking....""")
-    if (next_buy >= buying_diff) and (len(trades_json) <= user_configs["max_trades"]):
+    if (next_buy >= buying_diff) and (
+        len(trades_json) <= user_configs["max_trades"]
+    ):
         if user_configs["safe_guard"]:
-            # Check if current price is sufficiently distant from existing orders
             if is_sufficient_distance_from_orders(current_price):
                 takeprofit = current_price * user_configs["percentage_to_buy"]
-                buy_order(takeprofit)
-                logging.info(
-                    f"Buy order executed at {current_price}. Resetting peak reference to this value."
-                )
-            else:
-                logging.info(
-                    f"Safeguard activated: Current price {current_price} is too close to existing orders. Skipping buy."
-                )
+                try:
+                    buy_order(takeprofit)
+                    buying_message = f"Buy order executed at {current_price}. Resetting peak reference to this value."
+                    message_handler(buying_message)
+                    highest_price_reference = current_price
+                except Exception as e:
+                    error_msg = f"Error executing buy order: {e}"
+                    message_handler(error_msg)
         else:
             takeprofit = current_price * user_configs["percentage_to_buy"]
-            buy_order(takeprofit)
-            logging.info(
-                f"Buy order executed at {current_price}. Resetting peak reference to this value."
-            )
+            try:
+                buy_order(takeprofit)
+                buying_message = f"Buy order executed at {current_price}"
+                message_handler(buying_message)
+                highest_price_reference = current_price
+            except Exception as e:
+                error_msg = f"Error executing buy order: {e}"
+                message_handler(error_msg)
 
     for trade in trades_json:
         get_liquidation_status(trade, current_price)
         adjust_take_profit(trade)
-
-    # Returns the updated reference to the main loop
     return highest_price_reference
