@@ -1,7 +1,7 @@
 import json
 import logging  # Import the logging module
 import os
-
+import time
 from dotenv import load_dotenv
 from lnmarkets import rest
 
@@ -56,6 +56,7 @@ def initialize_price():
 def add_margin(id, amount=user_configs["margin"]):
     lnm.futures_add_margin({"amount": amount, "id": id})
     margin_message = f"Margin added to order {id} for amount {amount}"
+    time.sleep(1)
     message_handler(margin_message)
 
 
