@@ -2,6 +2,7 @@ import json
 import logging  # Import the logging module
 import os
 import time
+
 from dotenv import load_dotenv
 from lnmarkets import rest
 
@@ -76,9 +77,9 @@ def adjust_order(trade, new_takeprofit):
 def get_liquidation_status(trade, current_price):
     closure_threshold = (trade["liquidation"] / current_price) * 100
     if closure_threshold >= user_configs["threshold_to_add"]:
-        warning_message = f"""Trade {trade["id"]} is at
-        {round(closure_threshold, 2)}% of liquidation threshold"""
-        message_handler(warning_message)
+        # warning_message = f"""Trade {trade["id"]} is at
+        # {round(closure_threshold, 2)}% of liquidation threshold"""
+        # message_handler(warning_message)
         try:
             add_margin(trade["id"])
         except Exception as e:
