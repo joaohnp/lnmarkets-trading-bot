@@ -57,7 +57,7 @@ def initialize_price():
 def add_margin(id, amount=user_configs["margin"]):
     lnm.futures_add_margin({"amount": amount, "id": id})
     margin_message = f"Margin added to order {id} for amount {amount}"
-    time.sleep(1)
+    time.sleep(3)
     message_handler(margin_message)
 
 
@@ -71,6 +71,7 @@ def adjust_order(trade, new_takeprofit):
     adjusted_profit_msg = (
         f"Goal of {trade['id']} from {old_takeprofit} to {new_takeprofit}"
     )
+    time.sleep(3)
     message_handler(adjusted_profit_msg)
 
 
@@ -182,7 +183,7 @@ def get_trades(highest_price_reference):
             if is_sufficient_distance_from_orders(current_price):
                 takeprofit = current_price * user_configs["percentage_to_buy"]
                 try:
-                    buy_order(takeprofit)
+                    # buy_order(takeprofit)
                     buying_message = f"Buy order executed at {current_price}. Resetting peak reference to this value."
                     message_handler(buying_message)
                     highest_price_reference = current_price
@@ -192,7 +193,7 @@ def get_trades(highest_price_reference):
         else:
             takeprofit = current_price * user_configs["percentage_to_buy"]
             try:
-                buy_order(takeprofit)
+                # buy_order(takeprofit)
                 buying_message = f"Buy order executed at {current_price}"
                 message_handler(buying_message)
                 highest_price_reference = current_price
