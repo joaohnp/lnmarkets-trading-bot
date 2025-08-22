@@ -183,7 +183,7 @@ def get_trades(highest_price_reference):
             if is_sufficient_distance_from_orders(current_price):
                 takeprofit = current_price * user_configs["percentage_to_buy"]
                 try:
-                    #buy_order(takeprofit)
+                    buy_order(takeprofit)
                     buying_message = f"Buy order executed at {current_price}. Resetting peak reference to this value."
                     message_handler(buying_message)
                     highest_price_reference = current_price
@@ -193,7 +193,7 @@ def get_trades(highest_price_reference):
         else:
             takeprofit = current_price * user_configs["percentage_to_buy"]
             try:
-                # buy_order(takeprofit)
+                buy_order(takeprofit)
                 buying_message = f"Buy order executed at {current_price}"
                 message_handler(buying_message)
                 highest_price_reference = current_price
