@@ -30,7 +30,7 @@ user_configs = {
     "margin": 800,
     "quantity": 500,
     "leverage": 18,
-    "threshold_to_add": 97.5,
+    "threshold_to_add": 95,
     "safe_guard": True,
     "min_order_diff": 333,
 }
