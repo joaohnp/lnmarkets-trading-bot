@@ -10,11 +10,9 @@ from telegram_utils import send_telegram_message
 
 load_dotenv()
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
-
 
 options = {
     "key": os.getenv("LN_MARKETS_KEY"),
@@ -31,7 +29,6 @@ user_configs = {
     "quantity": 300,
     "leverage": 13,
     "threshold_to_add": 95,
-    "safe_guard": True,
     "min_order_diff": 333,
 }
 lnm = rest.LNMarketsRest(**options)
@@ -57,7 +54,7 @@ def initialize_price():
 def add_margin(id, amount=user_configs["margin"]):
     lnm.futures_add_margin({"amount": amount, "id": id})
     margin_message = f"Margin added to order {id} for amount {amount}"
-    time.sleep(3)
+    time.sleep(2)
     # message_handler(margin_message)
 
 
@@ -68,19 +65,12 @@ def adjust_order(trade, new_takeprofit):
         "type": "takeprofit",
         "value": new_takeprofit,
     })
-    adjusted_profit_msg = (
-        f"Goal of {trade['id']} from {old_takeprofit} to {new_takeprofit}"
-    )
     time.sleep(3)
-    # message_handler(adjusted_profit_msg)
 
 
 def get_liquidation_status(trade, current_price):
     closure_threshold = (trade["liquidation"] / current_price) * 100
     if closure_threshold >= user_configs["threshold_to_add"]:
-        # warning_message = f"""Trade {trade["id"]} is at
-        # {round(closure_threshold, 2)}% of liquidation threshold"""
-        # message_handler(warning_message)
         try:
             add_margin(trade["id"])
         except Exception as e:
@@ -117,7 +107,6 @@ def adjust_take_profit(trade):
         * 100000000
     )
     if round(real_profit) < round(ideal_profit):
-        # breakpoint()
         required_expected_profit = ideal_profit + sum_carry_fees + opening_fee
         new_takeprofit = 1 / (
             1 / trade["price"]
@@ -179,22 +168,11 @@ def get_trades(highest_price_reference):
     if (next_buy >= buying_diff) and (
         len(trades_json) <= user_configs["max_trades"]
     ):
-        if user_configs["safe_guard"]:
-            if is_sufficient_distance_from_orders(current_price):
-                takeprofit = current_price * user_configs["percentage_to_buy"]
-                try:
-                    buy_order(takeprofit)
-                    buying_message = f"Buy order executed at {current_price}. Resetting peak reference to this value."
-                    message_handler(buying_message)
-                    highest_price_reference = current_price
-                except Exception as e:
-                    error_msg = f"Error executing buy order: {e}"
-                    message_handler(error_msg)
-        else:
+        if is_sufficient_distance_from_orders(current_price):
             takeprofit = current_price * user_configs["percentage_to_buy"]
             try:
                 buy_order(takeprofit)
-                buying_message = f"Buy order executed at {current_price}"
+                buying_message = f"Buy order executed at {current_price}. Resetting peak reference to this value."
                 message_handler(buying_message)
                 highest_price_reference = current_price
             except Exception as e:
