@@ -23,16 +23,16 @@ options = {
     "network": "mainnet",
 }
 user_configs = {
-    "diff_to_buy": 100,
+    "diff_to_buy": 85,
     "percentage_to_buy": 1.005,
     "real_profit": 1.0045,
     "max_trades": 65,
     "margin": 1000,
-    "quantity": 300,
+    "quantity": 150,
     "leverage": 13,
     "threshold_to_add": 95,
     "safe_guard": True,
-    "min_order_diff": 333,
+    "min_order_diff": 250,
 }
 lnm = rest.LNMarketsRest(**options)
 
