@@ -25,12 +25,12 @@ options = {
 user_configs = {
     "diff_to_buy": 85,
     "percentage_to_buy": 1.005,
-    "real_profit": 1.0045,
+    "real_profit": 1.005,
     "max_trades": 65,
-    "margin": 1000,
+    "margin": 2000,
     "quantity": 150,
-    "leverage": 13,
-    "threshold_to_add": 95,
+    "leverage": 8,
+    "threshold_to_add": 90,
     "safe_guard": True,
     "min_order_diff": 250,
 }
