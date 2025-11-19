@@ -25,7 +25,7 @@ options = {
 user_configs = {
     "diff_to_buy": 85,
     "percentage_to_buy": 1.005,
-    "real_profit": 1.005,
+    "real_profit": 1.01,
     "max_trades": 65,
     "margin": 2000,
     "quantity": 150,
